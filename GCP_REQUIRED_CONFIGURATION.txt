@@ -1,0 +1,102 @@
+================================================================================
+  DISHA 4.0 HCOS — Google Cloud Platform OAuth2 Required Configuration
+  Target Application: hcos.net
+  Auth Provider: Supabase (handles Google OAuth token exchange)
+  Generated: 2026-08-14
+================================================================================
+
+STEP 1 — GOOGLE CLOUD CONSOLE: OAUTH 2.0 CLIENT CONFIGURATION
+--------------------------------------------------------------
+Navigate to:
+  https://console.cloud.google.com/apis/credentials
+
+Select your OAuth 2.0 Client ID (Web application type) for hcos.net.
+
+Under "Authorized JavaScript origins", ensure ALL of the following are present:
+  ✅ https://hcos.net
+  ✅ https://www.hcos.net
+
+Under "Authorized redirect URIs", ensure ALL of the following are present:
+  ✅ https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co/auth/v1/callback
+  ✅ https://hcos.net/auth/callback
+
+  NOTE: The primary redirect URI goes to Supabase's own auth endpoint.
+  Supabase then redirects the user to your app's /auth/callback route.
+  You MUST register the Supabase endpoint — not just your app's endpoint.
+
+  To find your Supabase project ref:
+    - Open https://app.supabase.com → your project → Settings → API
+    - Copy the "Project URL" (e.g. https://abcdefghij.supabase.co)
+    - Your redirect URI is: https://abcdefghij.supabase.co/auth/v1/callback
+
+STEP 2 — SUPABASE DASHBOARD: GOOGLE PROVIDER CONFIGURATION
+-----------------------------------------------------------
+Navigate to:
+  https://app.supabase.com → Your Project → Authentication → Providers → Google
+
+Required fields:
+  Client ID:      Paste your Google OAuth Client ID
+  Client Secret:  Paste your Google OAuth Client Secret
+
+Under "Redirect URL" (shown in Supabase dashboard), confirm it reads:
+  https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co/auth/v1/callback
+
+This URL MUST be registered in Google Cloud Console (Step 1 above).
+
+STEP 3 — SUPABASE DASHBOARD: SITE URL CONFIGURATION
+----------------------------------------------------
+Navigate to:
+  https://app.supabase.com → Your Project → Authentication → URL Configuration
+
+Set "Site URL" to:
+  https://hcos.net
+
+Under "Redirect URLs" (allowed list), add:
+  https://hcos.net/auth/callback
+  https://hcos.net/**
+
+STEP 4 — ENVIRONMENT VARIABLES (Application Server)
+----------------------------------------------------
+The following env vars must be set in your deployment environment:
+
+  NEXT_PUBLIC_SUPABASE_URL=https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-supabase-anon-key>
+  NEXT_PUBLIC_SITE_URL=https://hcos.net
+
+  NOTE: Google Client ID and Secret are stored in Supabase — NOT in your
+  application's environment variables. Do NOT add GOOGLE_CLIENT_ID or
+  GOOGLE_CLIENT_SECRET to your .env file.
+
+STEP 5 — VERIFICATION CHECKLIST
+---------------------------------
+After completing the above steps, verify the flow:
+
+  [ ] Google Cloud Console shows Supabase callback URI in Authorized Redirect URIs
+  [ ] Google Cloud Console shows hcos.net in Authorized JavaScript Origins
+  [ ] Supabase Google provider is enabled with correct Client ID + Secret
+  [ ] Supabase Site URL is set to https://hcos.net
+  [ ] Supabase Redirect URLs includes https://hcos.net/auth/callback
+  [ ] NEXT_PUBLIC_SITE_URL=https://hcos.net in production environment
+  [ ] Test: Click "Login with Gmail" → redirected to Google → returns to /dashboard
+
+COMMON FAILURE MODES
+--------------------
+  ❌ redirect_uri_mismatch
+     Cause: The URI sent to Google does not match any registered URI in GCP Console.
+     Fix:   Add https://<project-ref>.supabase.co/auth/v1/callback to GCP Console.
+
+  ❌ 400 Bad Request: invalid_client
+     Cause: Wrong Client ID or Client Secret in Supabase dashboard.
+     Fix:   Re-copy credentials from GCP Console → OAuth 2.0 Client IDs.
+
+  ❌ User redirected to /sign-up-login?error=auth-code-error
+     Cause: Supabase cannot exchange the authorization code (expired, reused, or
+            the redirect URI in the code exchange doesn't match).
+     Fix:   Ensure NEXT_PUBLIC_SITE_URL=https://hcos.net and Supabase Site URL
+            matches. Clear browser cookies and retry.
+
+  ❌ OAuth works in dev but fails in production
+     Cause: NEXT_PUBLIC_SITE_URL still set to dev/iframe origin.
+     Fix:   Set NEXT_PUBLIC_SITE_URL=https://hcos.net in production env.
+
+================================================================================

@@ -1,0 +1,89 @@
+version: '3.9'
+
+services:
+  # ─── DISHA 4.0 HCOS™ Application ──────────────────────────────────────────
+  disha-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: disha-app
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://disha:disha_secret@disha-db:5432/disha_hcos
+      REDIS_URL: redis://disha-redis:6379
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on:
+      disha-db:
+        condition: service_healthy
+      disha-redis:
+        condition: service_healthy
+    networks:
+      - disha-network
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ─── PostgreSQL 16 Database ────────────────────────────────────────────────
+  disha-db:
+    image: postgres:16-alpine
+    container_name: disha-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: disha
+      POSTGRES_PASSWORD: disha_secret
+      POSTGRES_DB: disha_hcos
+    volumes:
+      - disha-db-data:/var/lib/postgresql/data
+      - ./public/migrations/001_disha_hcos_schema.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+    ports:
+      - '5432:5432'
+    networks:
+      - disha-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U disha -d disha_hcos']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ─── Redis 7 — ZKP Proof Verification Cache ────────────────────────────────
+  disha-redis:
+    image: redis:7-alpine
+    container_name: disha-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - disha-redis-data:/data
+    ports:
+      - '6379:6379'
+    networks:
+      - disha-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  disha-db-data:
+    driver: local
+  disha-redis-data:
+    driver: local
+
+# ─── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  disha-network:
+    driver: bridge
